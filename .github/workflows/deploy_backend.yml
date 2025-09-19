@@ -1,0 +1,53 @@
+# 文件名: .github/workflows/deploy_backend.yml
+
+name: Deploy Backend to Cloud Run
+
+# 定义触发条件: 当推送到 main 分支时自动触发此工作流
+on:
+  push:
+    branches:
+      - main
+  # 也可以根据需要添加其他事件，例如 pull_request
+
+# 定义环境变量，方便后续使用
+env:
+  PROJECT_ID: ai-travel-shot-final # 替换为你的Google Cloud项目ID
+  SERVICE_NAME: ai-travel-shot-backend # 替换为你的Cloud Run服务名称
+  REGION: us-central1 # 替换为你的Cloud Run服务所在的区域
+
+# 定义工作流的Job
+jobs:
+  deploy:
+    # 运行在最新的Ubuntu系统上
+    runs-on: ubuntu-latest
+    
+    # 定义执行步骤
+    steps:
+    - name: ⬇️ Checkout code
+      uses: actions/checkout@v3
+
+    - name: 🔑 Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        # 使用我们之前配置的Secret
+        credentials_json: ${{ secrets.GCLOUD_SERVICE_KEY }}
+
+    - name: ⚙️ Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+        
+    - name: 🛠️ Build and Push Docker image
+      run: |
+        gcloud builds submit \
+          --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          --project=${{ env.PROJECT_ID }}
+
+    - name: 🚀 Deploy to Cloud Run
+      run: |
+        gcloud run deploy ${{ env.SERVICE_NAME }} \
+          --image gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --project=${{ env.PROJECT_ID }}
